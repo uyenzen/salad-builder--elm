@@ -108,11 +108,14 @@ type alias Contact c =
     }
 
 
+type Step
+    = Building (Maybe Error)
+    | Sending
+    | Confirmation
+
+
 type alias Model =
-    { building : Bool
-    , sending : Bool
-    , success : Bool
-    , error : Maybe String
+    { step : Step
     , salad : Salad
     , name : String
     , email : String
@@ -126,10 +129,7 @@ type alias Error =
 
 initialModel : Model
 initialModel =
-    { building = True
-    , sending = False
-    , success = False
-    , error = Nothing
+    { step = Building Nothing
     , salad =
         { base = Lettuce
         , toppings = Set.empty
@@ -313,10 +313,10 @@ viewContact contact =
         ]
 
 
-viewBuild : Model -> Html Msg
-viewBuild model =
+viewBuild : Maybe Error -> Model -> Html Msg
+viewBuild error model =
     div []
-        [ viewError model.error
+        [ viewError error
         , viewSection "1. Select Base"
             [ viewSelectBase model.salad.base ]
         , viewSection "2. Select Toppings"
@@ -377,14 +377,15 @@ viewConfirmation model =
 
 viewStep : Model -> Html Msg
 viewStep model =
-    if model.sending then
-        viewSending
+    case model.step of
+        Building error ->
+            viewBuild error model
 
-    else if model.building then
-        viewBuild model
+        Sending ->
+            viewSending
 
-    else
-        viewConfirmation model
+        Confirmation ->
+            viewConfirmation model
 
 
 view : Model -> Html Msg
@@ -498,11 +499,7 @@ update msg model =
         Send ->
             let
                 newModel =
-                    { model
-                        | building = False
-                        , sending = True
-                        , error = Nothing
-                    }
+                    { model | step = Sending }
             in
             ( newModel
             , send newModel
@@ -510,18 +507,18 @@ update msg model =
 
         SubmissionResult (Ok _) ->
             ( { model
-                | sending = False
-                , success = True
-                , error = Nothing
+                | step = Confirmation
               }
             , Cmd.none
             )
 
         SubmissionResult (Err _) ->
+            let
+                errorMessage =
+                    "There was a problem sending your order. Please try again."
+            in
             ( { model
-                | building = True
-                , sending = False
-                , error = Just "There was a problem sending your order. Please try again."
+                | step = Building (Just errorMessage)
               }
             , Cmd.none
             )
